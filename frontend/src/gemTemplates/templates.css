@@ -193,4 +193,86 @@
 .gt-polaroid .gt-tape { background: color-mix(in srgb, var(--gt-accent) 46%, white); }
 .gt-neo-brutalist::before { display: none; }
 
+/* Redesigned story-first styles: palette tokens drive the whole composition. */
+.gt-editorial-paper { padding: 145px 112px 105px; color: var(--gt-primary-text); background: var(--gt-palette-gradient); }
+.gt-editorial-paper::before { inset: 0; z-index: -1; opacity: .14; background-image: repeating-linear-gradient(0deg, transparent 0 7px, color-mix(in srgb, var(--gt-accent) 18%, transparent) 8px 9px); }
+.gt-editorial-paper .gt-header h2 { font: 600 34px/1.2 "Space Grotesk", sans-serif; text-transform: uppercase; }
+.gt-editorial-paper .gt-drop-quote { height: 120px; font-size: 205px; }
+.gt-editorial-paper .gt-quote-area { padding: 36px 0; }
+.gt-editorial-paper .gt-quote-scrim { inset: 8px -28px; border: 0; border-radius: 4px; }
+.gt-editorial-paper .gt-quote-area blockquote { font-family: "Playfair Display", "Noto Sans Devanagari", Georgia, serif !important; }
+
+.gt-neon-terminal { padding: 140px 104px 100px; color: var(--gt-primary-text); background: var(--gt-palette-gradient); }
+.gt-neon-terminal::before { inset: 0; z-index: -1; opacity: .28; background: repeating-linear-gradient(0deg, transparent 0 9px, color-mix(in srgb, var(--gt-accent) 18%, transparent) 10px 11px); }
+.gt-neon-terminal::after { top: 13%; right: 9%; width: 270px; height: 270px; z-index: -1; border: 2px solid var(--gt-accent); border-radius: 50%; box-shadow: 0 0 0 20px color-mix(in srgb, var(--gt-secondary-accent) 18%, transparent); }
+.gt-neon-terminal .gt-quote-area { padding: 40px 0; }
+.gt-neon-terminal .gt-quote-scrim { inset: 0 -24px; border: 1px solid color-mix(in srgb, var(--gt-accent) 75%, transparent); border-radius: 8px; }
+.gt-neon-terminal .gt-quote-area blockquote { font-family: "Space Mono", "Noto Sans Devanagari", monospace !important; text-shadow: none; }
+
+.gt-polaroid { padding: 110px 100px 88px; color: var(--gt-primary-text); background: var(--gt-palette-gradient); }
+.gt-polaroid .gt-polaroid-frame { position: relative; top: auto; left: auto; align-self: center; flex: 0 0 600px; width: 780px; height: 600px; margin: 48px 0 30px; padding: 24px 24px 76px; transform: rotate(-2deg); border: 1px solid rgba(255,255,255,.72); border-radius: 3px; background: var(--gt-quote-surface); box-shadow: 0 32px 72px var(--gt-shadow-color); }
+.gt-polaroid .gt-tape { top: -18px; width: 170px; height: 42px; }
+.gt-polaroid .gt-quote-area { flex: 1 1 auto; margin-top: 0; padding: 0 0 20px; }
+.gt-polaroid .gt-quote-scrim { inset: 0 -20px; border-radius: 10px; }
+.gt-polaroid .gt-quote-area blockquote { font-family: Caveat, "Noto Sans Devanagari", cursive !important; }
+
+.gt-swiss-minimal { padding: 135px 112px 100px; color: var(--gt-primary-text); background: var(--gt-palette-gradient); }
+.gt-swiss-minimal::before { top: 150px; right: 0; width: 235px; height: 235px; z-index: -1; background: var(--gt-accent); }
+.gt-swiss-minimal::after { right: 112px; bottom: 300px; width: 290px; height: 20px; z-index: -1; background: var(--gt-secondary-accent); }
+.gt-swiss-minimal .gt-quote-area { padding: 42px 0; }
+.gt-swiss-minimal .gt-quote-scrim { inset: 0 -18px; border: 0; border-left: 9px solid var(--gt-accent); border-radius: 0; }
+.gt-swiss-minimal .gt-quote-area blockquote { font: 600 88px/1.04 "Space Grotesk", "Noto Sans Devanagari", sans-serif !important; }
+
+.gt-frosted-glass { padding: 125px 92px; color: var(--gt-primary-text); background: var(--gt-palette-gradient); }
+.gt-frosted-glass::before { top: 110px; left: 690px; width: 290px; height: 290px; z-index: -1; border: 28px solid color-mix(in srgb, var(--gt-accent) 72%, transparent); border-radius: 50%; filter: none; }
+.gt-frosted-glass::after { right: 85px; bottom: 170px; width: 210px; height: 210px; z-index: -1; border: 3px solid var(--gt-secondary-accent); border-radius: 50%; filter: none; }
+.gt-frosted-glass .gt-header, .gt-frosted-glass .gt-quote-area, .gt-frosted-glass .gt-footer { padding-right: 35px; padding-left: 35px; }
+.gt-frosted-glass .gt-header { padding-top: 42px; }
+.gt-frosted-glass .gt-quote-area { padding-top: 52px; padding-bottom: 52px; }
+.gt-frosted-glass .gt-footer { padding-bottom: 36px; }
+.gt-frosted-glass .gt-header::before { inset: 0; border: 2px solid color-mix(in srgb, var(--gt-accent) 65%, white); border-bottom: 0; border-radius: 28px 28px 0 0; background: var(--gt-quote-surface); backdrop-filter: none; }
+.gt-frosted-glass .gt-quote-area::before { inset: 0; border-right: 2px solid color-mix(in srgb, var(--gt-accent) 65%, white); border-left: 2px solid color-mix(in srgb, var(--gt-accent) 65%, white); background: var(--gt-quote-surface); backdrop-filter: none; }
+.gt-frosted-glass .gt-footer::before { inset: 0; border: 2px solid color-mix(in srgb, var(--gt-accent) 65%, white); border-top: 0; border-radius: 0 0 28px 28px; background: var(--gt-quote-surface); backdrop-filter: none; }
+
+.gt-sunset-poster { padding: 160px 110px 115px; color: var(--gt-primary-text); background: var(--gt-palette-gradient); }
+.gt-sunset-poster::before { inset: 75px; z-index: -1; border: 3px solid var(--gt-accent); }
+.gt-sunset-poster::after { top: 190px; right: 145px; width: 155px; height: 155px; z-index: -1; border: 2px solid var(--gt-secondary-accent); border-radius: 50%; }
+.gt-sunset-poster .gt-quote-area { padding: 48px 0; }
+.gt-sunset-poster .gt-quote-scrim { inset: 0 -16px; border: 0; border-radius: 0; }
+.gt-sunset-poster .gt-quote-area blockquote { font: 400 94px/1.04 Anton, "Noto Sans Devanagari", sans-serif !important; text-shadow: none; }
+
+.gt-cosmic { padding: 145px 108px 105px; color: var(--gt-primary-text); background: var(--gt-palette-gradient); }
+.gt-cosmic::before { inset: 0; z-index: -1; background-image: radial-gradient(var(--gt-accent) 1px, transparent 2px), radial-gradient(var(--gt-secondary-accent) 1.4px, transparent 2.4px); background-size: 71px 83px, 127px 139px; background-position: 12px 8px, 48px 56px; opacity: .75; }
+.gt-cosmic::after { top: 255px; right: 88px; width: 250px; height: 250px; z-index: -1; border: 2px solid var(--gt-secondary-accent); border-radius: 50%; transform: rotate(-25deg) scaleY(.35); }
+.gt-cosmic .gt-quote-area { padding: 52px 0; }
+.gt-cosmic .gt-quote-scrim { inset: 0 -22px; border: 1px solid color-mix(in srgb, var(--gt-accent) 48%, transparent); border-radius: 28px; }
+.gt-cosmic .gt-quote-area blockquote { font-family: "Playfair Display", "Noto Sans Devanagari", Georgia, serif !important; }
+
+.gt-notebook-highlight { padding: 130px 105px 92px 150px; color: var(--gt-primary-text); background: var(--gt-palette-gradient); }
+.gt-notebook-highlight::before { top: 0; bottom: 0; left: 116px; z-index: 1; width: 3px; background: var(--gt-accent); }
+.gt-notebook-highlight .gt-quote-area { padding: 46px 0; }
+.gt-notebook-highlight .gt-quote-scrim { inset: 0 -22px; border: 0; border-radius: 4px; }
+.gt-notebook-highlight .gt-quote-area blockquote { font-family: Caveat, "Noto Sans Devanagari", cursive !important; }
+.gt-notebook-highlight mark { color: var(--gt-primary-text); background: linear-gradient(transparent 45%, color-mix(in srgb, var(--gt-accent) 76%, white) 45% 90%, transparent 90%); }
+.gt-spiral i { border-color: var(--gt-secondary-accent); background: var(--gt-quote-surface); box-shadow: none; }
+
+.gt-cinema-frame { justify-content: space-between; padding: 165px 102px 135px; color: var(--gt-primary-text); background: var(--gt-palette-gradient); }
+.gt-cinema-frame::before, .gt-cinema-frame::after { height: 132px; background: var(--gt-quote-surface); }
+.gt-cinema-frame.has-photo .gt-background-photo { filter: saturate(.92) brightness(.42); }
+.gt-cinema-frame .gt-header h2 { font-size: 38px; }
+.gt-cinema-frame .gt-quote-area { padding: 0 0 130px; }
+.gt-cinema-frame .gt-quote-scrim { inset: 0 -20px; border: 0; border-radius: 5px; }
+.gt-cinema-frame .gt-quote-area blockquote { font: 500 67px/1.17 Inter, "Noto Sans Devanagari", sans-serif !important; text-shadow: none; }
+.gt-cinema-frame .gt-timecode { color: var(--gt-muted-text); }
+
+.gt-neo-brutalist { padding: 120px 100px 92px; color: var(--gt-primary-text); background: var(--gt-palette-gradient); border: 18px solid var(--gt-accent); box-shadow: inset 0 0 0 8px var(--gt-secondary-accent); }
+.gt-neo-brutalist::before { top: 280px; right: 90px; width: 150px; height: 150px; border: 14px solid var(--gt-secondary-accent); border-radius: 50%; }
+.gt-neo-brutalist .gt-header h2 { display: block; max-width: 730px; padding: 14px 18px; border: 4px solid var(--gt-accent); border-radius: 4px; color: var(--gt-primary-text); font: 400 32px/1.15 Anton, "Noto Sans Devanagari", sans-serif; background: var(--gt-quote-surface); box-shadow: 8px 8px 0 var(--gt-secondary-accent); }
+.gt-neo-brutalist .gt-quote-area { padding: 42px 0; }
+.gt-neo-brutalist .gt-quote-scrim { inset: 0 -18px; border: 3px solid var(--gt-accent); border-radius: 4px; box-shadow: 9px 9px 0 var(--gt-secondary-accent); }
+.gt-neo-brutalist .gt-quote-area blockquote { font: 400 82px/1.05 Anton, "Noto Sans Devanagari", sans-serif !important; }
+.gt-neo-brutalist .gt-sticker { top: 280px; right: 100px; z-index: 3; max-width: 300px; padding: 12px 16px; transform: rotate(4deg); border: 3px solid var(--gt-accent); color: var(--gt-primary-text); font: 600 19px/1.2 Inter, sans-serif; background: var(--gt-quote-surface); }
+
+@media (prefers-reduced-motion: reduce) { .gt-card *, .gt-card::before, .gt-card::after { animation: none !important; } }
+
 @media (prefers-reduced-motion: reduce) { .gt-card *, .gt-card::before, .gt-card::after { animation: none !important; } }

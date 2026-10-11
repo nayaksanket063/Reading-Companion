@@ -35,9 +35,9 @@ export default function HelperThread({ helper, onOpen, suggestions = [], onAsk }
           {m.role === "user" ? <p>{m.content}</p> : <Answer text={m.content} />}
           {m.sources?.length > 0 && (
             <div className="dxa-src">
-              {m.sources.map((s, i) => (
-                <button type="button" key={i} onClick={() => onOpen(s.id, s.heading)}>
-                  <span><em>Open this section</em>{s.title}{s.heading ? ` › ${s.heading}` : ""}</span><ArrowUpRight size={15} />
+              {[...new Map(m.sources.map((source) => [`${source.id}\u0000${source.heading || ""}`, source])).values()].map((s) => (
+                <button type="button" key={`${s.id}-${s.heading || "page"}`} onClick={() => onOpen(s.id, s.heading)}>
+                  <span><em>Open this section</em><span>{s.title}{s.heading ? ` › ${s.heading}` : ""}</span></span><ArrowUpRight size={15} />
                 </button>
               ))}
             </div>
