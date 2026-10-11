@@ -1,13 +1,14 @@
 import {
-  AlertTriangle, Bell, Bot, BookOpen, Brain, Bug, Camera, Cat, Check, ChevronRight, Clock, Cloud, Copy, Download, Flame, Gem, History, Languages, Library, Link2,
+  AlertTriangle, Bell, Bot, BookOpen, Brain, Bug, Camera, Cat, Check, ChevronRight, Clock, Cloud, Copy, Crown, Download, Flame, Gem, History, Languages, Library, Link2,
   Lock, LogOut, Maximize2, MessageSquareText, Mic, MicOff, Moon, Palette, PenLine, Play, Plus, RefreshCw, Route, ScanText, Save, Search, Send, Shuffle, Square,
   Sparkles, Sprout, Sun, Trash2, TrendingUp, User, Volume2, Eye, ThumbsUp, Wrench, FlaskConical, Zap,
 } from "lucide-react";
+import { useReducedMotion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { getHelpAnimation } from "./helpAnimations.js";
 
 const ICONS = {
-  AlertTriangle, Bell, Bot, BookOpen, Brain, Bug, Camera, Cat, Check, ChevronRight, Clock, Cloud, Copy, Download, Flame, Gem, History, Languages, Library, Link2,
+  AlertTriangle, Bell, Bot, BookOpen, Brain, Bug, Camera, Cat, Check, ChevronRight, Clock, Cloud, Copy, Crown, Download, Flame, Gem, History, Languages, Library, Link2,
   Lock, LogOut, Maximize2, MessageSquareText, Mic, MicOff, Moon, Palette, PenLine, Play, Plus, RefreshCw, Route, ScanText, Save, Search, Send, Shuffle, Square,
   Sparkles, Sprout, Sun, Trash2, TrendingUp, User, Volume2, Eye, ThumbsUp, Wrench, FlaskConical, Zap,
 };
@@ -64,6 +65,23 @@ function Scene({ kind, items, active }) {
           <div className="ha-ring-side">
             {items.slice(0, 3).map((entry, i) => <span key={entry.label} className={i === active ? "on" : ""}><Icon name={entry.icon} size={13} />{entry.label}</span>)}
           </div>
+        </div>
+      );
+    case "arena":
+      return (
+        <div className="ha-scene ha-arena">
+          <div className="ha-arena-tabs"><span className={active === 0 ? "on" : ""}>This week</span><span className={active === 2 ? "on" : ""}>All time</span></div>
+          <div className="ha-arena-podium">
+            {[{ rank: 2, height: "23px" }, { rank: 1, height: "34px" }, { rank: 3, height: "18px" }].map(({ rank, height }) => (
+              <span key={rank} className={`ha-arena-racer rank-${rank} ${active === 0 ? "rise" : ""}`}>
+                {rank === 1 && <Crown className={`ha-arena-crown ${active >= 1 ? "landed" : ""}`} size={13} />}
+                <i className={`ha-arena-avatar ${active >= 1 ? "pop" : ""}`}>{rank}</i>
+                <b style={{ height }}>{rank}</b>
+              </span>
+            ))}
+          </div>
+          <span className="ha-arena-reset"><Clock size={9} /> Mon · 12 AM IST</span>
+          <span className={`ha-arena-place ${active >= 2 ? "slide" : ""}`}>Your place</span>
         </div>
       );
     case "rows":
@@ -134,10 +152,19 @@ function Scene({ kind, items, active }) {
 
 function Animation({ animation }) {
   const [paused, setPaused] = useState(false);
-  const active = useCycle(animation.items.length, 2300, paused);
+  const [visible, setVisible] = useState(false);
+  const [stage, setStage] = useState(null);
+  const reduceMotion = useReducedMotion();
+  const active = useCycle(animation.items.length, 2300, paused || reduceMotion || !visible);
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") { setVisible(true); return undefined; }
+    const observer = new IntersectionObserver(([entry]) => setVisible(Boolean(entry?.isIntersecting)), { threshold: 0.1 });
+    if (stage) observer.observe(stage);
+    return () => observer.disconnect();
+  }, [stage]);
   const entry = animation.items[active];
   return (
-    <div className="ha-body" style={{ "--ha-accent": animation.accent }} onPointerDown={() => setPaused(true)}>
+    <div ref={setStage} className="ha-body" style={{ "--ha-accent": animation.accent }} onPointerDown={() => setPaused(true)}>
       <div className="ha-stage"><Scene kind={animation.kind} items={animation.items} active={active} /></div>
       <p key={active} className="ha-caption"><b>{entry.label}.</b> {entry.text}</p>
       <div className="ha-dots" aria-hidden="true">{animation.items.map((item, i) => <i key={item.label} className={i === active ? "on" : ""} />)}</div>

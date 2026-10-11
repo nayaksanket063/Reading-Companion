@@ -1,10 +1,11 @@
 // Catalogue of Help & Support chat animations. Pure data so the backend can
 // reuse the ids and summaries when the AI picks which animations to show.
 // `kind` selects a visual in HelpAnimations.jsx; `items` are the steps it cycles.
+import { FEATURE_MANIFEST } from "./featureManifest.js";
 
 const item = (icon, label, text) => ({ icon, label, text });
 
-export const HELP_ANIMATIONS = [
+const CORE_HELP_ANIMATIONS = [
   // Home
   { id: "home-mascot", group: "Home", title: "Your mascot", kind: "avatar", accent: "#f2a65a",
     keywords: ["mascot", "companion character", "owl", "robot", "sprout", "fox", "home screen character", "mascot do"],
@@ -116,9 +117,9 @@ export const HELP_ANIMATIONS = [
   { id: "session-snapshot-flow", group: "Reading session", title: "Snapshot reading", kind: "flow", accent: "#6aa9ff",
     keywords: ["snapshot", "page snapshot", "next page", "page turn", "replace snapshot", "previous page context", "book snapshot"],
     items: [item("Camera", "Send a snapshot", "Share one still photo of the page you are reading."), item("BookOpen", "Ask about it", "The companion answers using the latest page photo."), item("ChevronRight", "Turn the page", "Send another snapshot when you move to a new page."), item("Brain", "Keep the story", "Saved summaries and story context carry across page photos.")] },
-  { id: "profile-reader-arena", group: "Profile", title: "Reader Arena", kind: "ring", accent: "#f5c451",
+  { id: "profile-reader-arena", group: "Profile", title: "Reader Arena", kind: "arena", accent: "#f5c451",
     keywords: ["reader arena", "arena", "reader ranking", "reading leaderboard", "weekly reading rank", "all time ranking", "reading race"],
-    items: [item("TrendingUp", "Your place", "See your real reading-time rank among readers."), item("Clock", "This week", "The weekly race resets Monday at midnight in India."), item("Sparkles", "All time", "Compare lifetime reading time across every genre.")] },
+    items: [item("TrendingUp", "Read to climb", "Accepted reading time raises your place in the weekly race."), item("User", "The podium", "Reader avatars pop in, then the crown lands on first place."), item("Clock", "Your place", "Switch This week or All time; the week resets Monday at 12 AM IST.")] },
 
   // Support and info
   { id: "support-report", group: "Support", title: "Report an Issue", kind: "flow", accent: "#f2a65a",
@@ -137,6 +138,41 @@ export const HELP_ANIMATIONS = [
     keywords: ["about", "about section", "about the app", "who made", "app info", "developer", "credits"],
     items: [item("BookOpen", "The app", "What Reading Companion is for."), item("Sparkles", "Version", "The version you are running."), item("User", "The maker", "Who built it and how to reach out.")] },
 ];
+
+const FEATURE_SCENES = {
+  "reader-arena": { kind: "arena", icons: ["TrendingUp", "User", "Clock"], labels: ["Read to climb", "The podium", "Your place"] },
+  "session-mic": { kind: "flow", icons: ["User", "Mic", "MicOff"], labels: ["Standby", "Listening to you…", "Mic muted"] },
+  "daily-reading-limit": { kind: "flow", icons: ["Clock", "Library", "Mail"], labels: ["Daily time", "Across books", "Need more time?"] },
+  "gem-detail": { kind: "flow", icons: ["Gem", "Palette", "Download"], labels: ["Choose a style", "Pick a palette", "Share your quote"] },
+  "add-book": { kind: "flow", icons: ["Plus", "PenLine", "Camera"], labels: ["Name your book", "Add the contents", "Check your chapters"] },
+  "contact-developer": { kind: "flow", icons: ["Mail", "Copy", "Send"], labels: ["Review the request", "Choose a mail app", "Send when ready"] },
+};
+
+const DEFAULT_FEATURE_SCENE = {
+  dashboard: { kind: "grid", icons: ["BookOpen", "TrendingUp", "Clock"], labels: ["Find it", "Use it", "See progress"] },
+  library: { kind: "flow", icons: ["Library", "BookOpen", "Check"], labels: ["Find it", "Open it", "Keep going"] },
+  gems: { kind: "card", icons: ["Gem", "Palette", "Download"], labels: ["Save a line", "Make it yours", "Share it"] },
+  memory: { kind: "graph", icons: ["Brain", "Link2", "Shuffle"], labels: ["Open Memory", "Explore ideas", "Find connections"] },
+  profile: { kind: "rows", icons: ["User", "Copy", "Sparkles"], labels: ["Open Profile", "Choose an option", "See what changes"] },
+  settings: { kind: "toggles", icons: ["Palette", "Clock", "Check"], labels: ["Open Settings", "Choose a setting", "Save your choice"] },
+  report: { kind: "flow", icons: ["Bug", "PenLine", "Send"], labels: ["Choose a topic", "Describe it", "Track your report"] },
+};
+
+const generatedHelpAnimations = FEATURE_MANIFEST.map((feature, index) => {
+  const scene = FEATURE_SCENES[feature.id] || DEFAULT_FEATURE_SCENE[feature.screen] || DEFAULT_FEATURE_SCENE.profile;
+  const text = [feature.where, feature.purpose, feature.technicalBackground];
+  return {
+    id: feature.animationId,
+    group: feature.where,
+    title: feature.name,
+    kind: scene.kind,
+    accent: ["#f2a65a", "#6aa9ff", "#42d897", "#ff8fab", "#b48cff"][index % 5],
+    keywords: feature.aliases,
+    items: scene.labels.map((label, step) => item(scene.icons[step], label, text[step].slice(0, 180))),
+  };
+});
+
+export const HELP_ANIMATIONS = [...CORE_HELP_ANIMATIONS, ...generatedHelpAnimations];
 
 export const HELP_ANIMATION_IDS = HELP_ANIMATIONS.map((animation) => animation.id);
 
