@@ -57,6 +57,14 @@ test("camera and dock answers explain the actual controls", () => {
   assert.match(buttons, /\*\*Tap to ask\*\*/);
 });
 
+test("reading guide explains one mute mic, explicit typing, and the muted data boundary", () => {
+  const mic = getRelevantHelp("What does the mic send while muted?");
+  assert.equal(mic?.id, "session-mic");
+  assert.match(mic.content, /single microphone button/i);
+  assert.match(mic.content, /typed questions still work/i);
+  assert.match(mic.content, /After 30 seconds muted/i);
+});
+
 test("Reader Arena help explains ranking inputs, calculation, refresh, and data flow", () => {
   const answer = getRelevantHelp("How does Reader Arena calculate rankings and refresh its data?");
 
