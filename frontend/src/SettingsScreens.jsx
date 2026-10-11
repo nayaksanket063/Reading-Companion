@@ -31,6 +31,7 @@ import { APP_VERSION } from "./version.js";
 import { fetchArenaPhotoPreference, setArenaPhotoVisibility } from "./readingQuota.js";
 import { supabaseClient } from "./supabaseClient.js";
 import { reportsForOwner } from "./reportOwnership.js";
+import ThemedPicker from "./ThemedPicker.jsx";
 
 export { APP_VERSION };
 const VOICES = ["Leda", "Aoede", "Kore", "Despina", "Erinome", "Sulafat", "Achernar", "Charon", "Orus"];
@@ -1035,9 +1036,7 @@ export function ReportScreen({ nav, stores }) {
           <Group title="What is it about?">
             <label className="rp-dropdown-label">
               <span>Category</span>
-              <select className="rp-type-select" value={type} onChange={(e) => setType(e.target.value)}>
-                {TYPES.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
-              </select>
+              <ThemedPicker label="Category" value={type} options={TYPES.map(({ id, label }) => ({ value: id, label }))} onChange={setType} className="rp-type-select" />
             </label>
             <div className="rp-type-summary">
               <span className="rp-type-badge">{TYPES.find((entry) => entry.id === type)?.label}</span>
@@ -1048,7 +1047,7 @@ export function ReportScreen({ nav, stores }) {
           <Group title="Details">
             <div className="st-form elevated" onFocusCapture={keepFieldVisible}>
               <label>Where did it happen?
-                <select className="st-input full" value={area} onChange={(e) => setArea(e.target.value)}>{AREAS.map((a) => <option key={a}>{a}</option>)}</select>
+                <ThemedPicker label="Where did it happen?" value={area} options={AREAS.map((option) => ({ value: option, label: option }))} onChange={setArea} className="st-input full" />
               </label>
               {isFault && (
                 <div>
@@ -1124,10 +1123,7 @@ export function ReportScreen({ nav, stores }) {
             <>
               <div className="rp-filter-row">
                 <label className="rp-filter-label">Filter</label>
-                <select className="rp-filter" value={reportFilter} onChange={(e) => setReportFilter(e.target.value)}>
-                  <option value="all">All</option>
-                  {TYPES.map((entry) => <option key={entry.id} value={entry.id}>{entry.label}</option>)}
-                </select>
+                <ThemedPicker label="Filter reports" value={reportFilter} options={[{ value: "all", label: "All" }, ...TYPES.map((entry) => ({ value: entry.id, label: entry.label }))]} onChange={setReportFilter} className="rp-filter" />
                 {SUPABASE_URL && SUPABASE_KEY && (
                   <button className="rp-refresh" type="button" onClick={refreshReports} disabled={refreshingReports} aria-label="Refresh report statuses" title="Refresh report statuses">
                     <RefreshCw size={15} className={refreshingReports ? "spinning" : ""} />
