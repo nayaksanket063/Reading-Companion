@@ -29,6 +29,8 @@ import "./SettingsScreens.css";
 import { useHaptic } from "./useHaptic.js";
 import { APP_VERSION } from "./version.js";
 import { fetchArenaPhotoPreference, setArenaPhotoVisibility } from "./readingQuota.js";
+import { supabaseClient } from "./supabaseClient.js";
+import { reportsForOwner } from "./reportOwnership.js";
 
 export { APP_VERSION };
 const VOICES = ["Leda", "Aoede", "Kore", "Despina", "Erinome", "Sulafat", "Achernar", "Charon", "Orus"];
@@ -647,6 +649,12 @@ const REPORT_KEY = "rc_reports";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+async function reportAuthHeaders() {
+  const { data } = await supabaseClient?.auth?.getSession?.() || {};
+  const token = data?.session?.access_token;
+  return { apikey: SUPABASE_KEY, Authorization: `Bearer ${token || SUPABASE_KEY}` };
+}
+
 async function signReportScreenshots(report) {
   const screenshots = Array.isArray(report.screenshots) ? report.screenshots : [];
   const paths = screenshots.filter((screenshot) => typeof screenshot === "string" && !/^(?:data:image\/|https?:\/\/)/i.test(screenshot));
@@ -655,7 +663,7 @@ async function signReportScreenshots(report) {
   try {
     const response = await apiFetch("/api/bug-reports/screenshot-urls", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await reportAuthHeaders()) },
       body: JSON.stringify({ reportId: report.id, paths }),
     });
     if (!response.ok) return { ...report, screenshotUrls: screenshots.filter((screenshot) => /^(?:data:image\/|https?:\/\/)/i.test(screenshot)) };
@@ -678,7 +686,7 @@ async function deliver(report) {
     try {
       const response = await apiFetch("/api/bug-reports", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await reportAuthHeaders()) },
         body: JSON.stringify({ report: { ...report, pushEndpoint: await currentPushEndpoint() } }),
       });
       if (!response.ok) return null;
@@ -697,21 +705,22 @@ async function deliver(report) {
   };
 }
 
-async function fetchReportFromSupabase(reportId) {
-  if (!SUPABASE_URL || !SUPABASE_KEY || !reportId) return null;
+async function fetchReportFromSupabase(reportId, userId) {
+  if (!SUPABASE_URL || !SUPABASE_KEY || !reportId || !userId) return null;
   const url = new URL(`${SUPABASE_URL}/rest/v1/bug_reports`);
   url.searchParams.set("select", "*");
   url.searchParams.set("id", `eq.${reportId}`);
+  url.searchParams.set("owner_user_id", `eq.${userId}`);
   url.searchParams.set("limit", "1");
-  const res = await fetch(url.toString(), { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
+  const res = await fetch(url.toString(), { headers: await reportAuthHeaders() });
   if (!res.ok) throw new Error(`report_fetch_failed_${res.status}`);
   const rows = await res.json();
   return Array.isArray(rows) && rows[0] ? signReportScreenshots(rows[0]) : null;
 }
 
 // Only reports this device submitted are synced; matching by reporter name would pull in other people's reports.
-async function syncReportsFromSupabase() {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return [];
+async function syncReportsFromSupabase(userId) {
+  if (!SUPABASE_URL || !SUPABASE_KEY || !userId) return [];
   const ownedIds = loadReports().map((item) => item.id).filter((id) => /^r-\d+$/.test(id || ""));
   if (!ownedIds.length) return [];
   try {
@@ -719,11 +728,9 @@ async function syncReportsFromSupabase() {
     url.searchParams.set("select", "*");
     url.searchParams.set("order", "created_at.desc");
     url.searchParams.set("id", `in.(${ownedIds.join(",")})`);
+    url.searchParams.set("owner_user_id", `eq.${userId}`);
     const res = await fetch(url.toString(), {
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-      },
+      headers: await reportAuthHeaders(),
     });
     if (!res.ok) return [];
     const rows = await res.json();
@@ -826,7 +833,8 @@ export function ReportScreen({ nav, stores }) {
   const fileRef = useRef(null);
   const isFault = type === "bug" || type === "issue";
 
-  const filteredReports = list.filter((item) => reportFilter === "all" || item.type === reportFilter);
+  const ownedReports = reportsForOwner(list, nav.userId);
+  const filteredReports = ownedReports.filter((item) => reportFilter === "all" || item.type === reportFilter);
   const selectedReport = filteredReports.find((item) => item.id === selectedId) || null;
 
   const flash = (t) => { setMsg(t); setTimeout(() => setMsg(""), 2800); };
@@ -855,6 +863,7 @@ export function ReportScreen({ nav, stores }) {
   function persist(next) {
     const prepared = next.map((r) => ({
       ...r,
+      ownerUserId: r.ownerUserId || r.owner_user_id || null,
       status: normalizeReportStatus(r),
       resolvedAt: r.resolvedAt || r.resolved_at || null,
       resolvedInVersion: r.resolvedInVersion || r.resolved_in_version || null,
@@ -869,7 +878,7 @@ export function ReportScreen({ nav, stores }) {
     if (!SUPABASE_URL || !SUPABASE_KEY || refreshingReports) return;
     setRefreshingReports(true);
     try {
-      const remote = await syncReportsFromSupabase();
+      const remote = await syncReportsFromSupabase(nav.userId);
       if (remote.length) {
         const local = loadReports();
         const merged = [...remote, ...local.filter((item) => !remote.some((row) => row.id === item.id))];
@@ -888,7 +897,7 @@ export function ReportScreen({ nav, stores }) {
     setRefreshingOne(true);
     try {
       // keep the spinner visible long enough to notice
-      const [row] = await Promise.all([fetchReportFromSupabase(reportId), new Promise((resolve) => setTimeout(resolve, 600))]);
+      const [row] = await Promise.all([fetchReportFromSupabase(reportId, nav.userId), new Promise((resolve) => setTimeout(resolve, 600))]);
       if (row) {
         const local = loadReports();
         const exists = local.some((item) => item.id === reportId);
@@ -908,7 +917,7 @@ export function ReportScreen({ nav, stores }) {
     let active = true;
     async function sync() {
       if (!SUPABASE_URL || !SUPABASE_KEY) return;
-      const remote = await syncReportsFromSupabase();
+      const remote = await syncReportsFromSupabase(nav.userId);
       if (!active || !remote.length) return;
       const local = loadReports();
       const merged = [...remote, ...local.filter((item) => !remote.some((row) => row.id === item.id))];
@@ -916,7 +925,7 @@ export function ReportScreen({ nav, stores }) {
     }
     sync();
     return () => { active = false; };
-  }, [stores.profile.data.name]);
+  }, [stores.profile.data.name, nav.userId]);
 
   useEffect(() => {
     if (selectedId && !filteredReports.some((item) => item.id === selectedId)) {
@@ -983,6 +992,7 @@ export function ReportScreen({ nav, stores }) {
     if (title.trim().length < 3 || desc.trim().length < 10) return flash("Add a short title and a few details first");
     const r = {
       id: `r-${Date.now()}`, type, area, severity: isFault ? sev : null,
+      ownerUserId: nav.userId || null,
       title: title.trim(), description: desc.trim(), steps: isFault ? steps.trim() : "",
       screenshots: shots, status: "queued", createdAt: new Date().toISOString(),
       reporter: stores.profile.data.name, appVersion: APP_VERSION,
