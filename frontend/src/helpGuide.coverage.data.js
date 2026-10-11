@@ -109,7 +109,7 @@ export const HELP_FEATURE_MANIFEST = [
     name: "reading dock buttons",
     entryId: "session-buttons",
     files: ["App.jsx"],
-    includes: ["aria-label={typedQuestionOpen ? \"Close typed question\" : \"Type a question\"}", "aria-label=\"Toggle transcript\"", "aria-label=\"End session\""],
+  includes: ["aria-label={typedQuestionOpen ? \"Close typed question\" : \"Type a question\"}", "aria-pressed={muted}", "aria-label=\"Toggle transcript\"", "aria-label=\"End session\""],
   },
   {
     name: "snapshot and printed page controls",

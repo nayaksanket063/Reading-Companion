@@ -150,7 +150,7 @@ const BASE_HELP_GUIDE = [
     keywords: ["reading buttons", "dock buttons", "session buttons", "mic button", "camera button", "snapshot button", "transcript button", "ghost button", "end session", "tap to ask", "hands-free", "ask by typing"],
     screen: "library",
     demo: "dock",
-    content: "The bottom dock has the mic button (**Ask a question** / **Stop asking**), **Page snapshot**, **Transcript**, **Ghost**, and **End session**. **Snap page** and **Next page** share or replace the current photo. **Transcript** shows the conversation and **Re-sync**. **Ghost** toggles Author’s Ghost Mode.",
+    content: "The bottom dock has one microphone button for **Mute microphone** / **Unmute microphone**. The neighboring message button starts or stops **Tap to ask**; **Ask by typing** remains available above the dock. **Page snapshot**, **Transcript**, **Ghost**, and **End session** are separate controls. **Snap page** and **Next page** share or replace the current photo. **Transcript** shows the conversation and **Re-sync**. **Ghost** toggles Author’s Ghost Mode.",
   },
   {
     id: "session-mic",
@@ -158,7 +158,7 @@ const BASE_HELP_GUIDE = [
     keywords: ["mic", "microphone", "mute", "unmute", "muted", "voice permission", "hear me", "automatic listening", "auto-listening", "wake word", "wake-up", "companion name"],
     screen: "library",
     demo: "dock",
-    content: "The microphone stays open during the active reading session, rather than relying on a browser’s on-device wake-word feature or a separate clip-classification request. After the short welcome, the companion listens continuously but should not interrupt ordinary reading aloud. Say **I’m going to read**, **mein padhne ja raha hoon**, or **don’t interrupt** to enter quiet-reading mode. It keeps listening; say your companion’s name, **hello**, or ask a clear question (for example, **explain this** or **achha iska matlab kya hai**) to get a response. The mic button can still be used to mute or directly open a question. Voice depends on microphone permission, internet access, browser foreground/background behavior and Gemini availability; always-on streaming may use more battery and cannot guarantee lock-screen operation.",
+    content: "The status line explains the voice state: **Standby** waits for your companion’s name or the **Tap to ask** message button; a short detected clip may be sent to the voice classifier. **Listening to you…** means your question audio is sent to Gemini Live. **Answering…** means Gemini Live is returning speech and a transcript. **Reconnecting…** means the voice connection is warming or recovering, with a short speech buffer. Tap the single microphone button to mute or unmute. While **Mic muted**, automatic microphone audio, page images, Live messages, classifier calls and reconnects stop; typed questions still work because you explicitly send them. After 30 seconds muted, the app releases the mic hardware and Live connection. Tap the **ⓘ** beside the status for the same explanation in-session. Voice also depends on microphone permission, internet access, browser foreground/background behavior and Gemini availability.",
   },
   {
     id: "camera-options",

@@ -4762,7 +4762,6 @@ const recapLine = recap ? `\n\nRECENT CONVERSATION with this reader (earlier, fo
           <span key={`w-${sessionStats.words}`}><BookOpen size={13} /> {sessionStats.words} words</span>
           <span key={`g-${sessionStats.gems}`}><Gem size={13} /> {sessionStats.gems} gems</span>
           {snapshot && <span key={`p-${snapshot.page}`}><ScanText size={13} /> {snapshot.pageNumber ? `Page ${snapshot.pageNumber}` : `Snapshot ${snapshot.page}`}</span>}
-          {muted && <span className="muted-chip"><MicOff size={13} /> Muted</span>}
         </div>
       </div>
 

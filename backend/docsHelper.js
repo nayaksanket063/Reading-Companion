@@ -1,6 +1,13 @@
 // Retrieval + prompt building for the Docs Helper. It only ever sees the (placeholder-only) docs bundle.
 const STOP = new Set("the a an and or of to in is it for on with how do i what why where when does my can this that are be at as by from".split(" "));
 
+const QUERY_ALIASES = [
+  { id: "reader-arena", ids: ["reader-arena", "profile-reader-arena"], phrases: ["reader arena", "leaderboard", "ranking", "rank readers", "weekly race", "all time rank", "padhai ranking", "hafte ki race", "is hafte ki race"] , tokens: "reader arena ranking leaderboard weekly all time reading time" },
+  { id: "daily-reading-limit", ids: ["daily-reading-limit", "set-reading-limit"], phrases: ["daily reading limit", "reading limit", "daily limit", "30 minutes", "30 minute", "roz ki limit", "padhai ki limit", "padhne ki limit", "reading ka time"], tokens: "daily reading limit allowance 30 minutes reset utc ist" },
+  { id: "contact-developer", ids: ["contact-developer", "daily-reading-limit", "docs-access"], phrases: ["contact the developer", "contact developer", "developer email", "request more time", "dev se contact", "developer se baat", "zyada time", "limit increase"], tokens: "contact developer email request support docs access reading time" },
+  { id: "gem-detail", ids: ["gem-detail", "gem-download"], phrases: ["gem card templates", "gem templates", "quote card", "instagram story", "whatsapp status", "share a gem"], tokens: "gem card template quote share instagram story whatsapp status palette download" },
+];
+
 export function blockToText(block, flows = {}) {
   if (block.type === "flow" && flows[block.id]) return flows[block.id].steps.map((s) => `${s.t}: ${s.d}`).join(" ");
   if (block.type === "code") return `Code: ${block.text}`;
@@ -14,12 +21,12 @@ export function buildChunks(bundle) {
   const flows = bundle?.flows || {};
   const chunks = [];
   for (const page of bundle?.pages || []) {
-    let current = { pageId: page.id, title: page.title, group: page.group, heading: "", text: page.summary || "" };
+    let current = { pageId: page.id, title: page.title, group: page.group, heading: "", text: page.summary || "", aliases: page.aliases || page.keywords || [] };
     const push = () => { if (current.text.trim()) chunks.push(current); };
     for (const block of page.blocks || []) {
       if (block.type === "h2") {
         push();
-        current = { pageId: page.id, title: page.title, group: page.group, heading: block.text, text: "" };
+        current = { pageId: page.id, title: page.title, group: page.group, heading: block.text, text: "", aliases: page.aliases || page.keywords || [] };
       } else {
         current.text += `${blockToText(block, flows)}\n`;
       }
@@ -31,9 +38,12 @@ export function buildChunks(bundle) {
 
 const tokens = (text) => String(text).toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 1 && !STOP.has(w));
 const stem = (w) => w.replace(/(ing|ed|es|s)$/, "");
+const normalized = (text) => String(text).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 export function retrieve(chunks, question, { limit = 5, pageId = "" } = {}) {
-  const q = [...new Set(tokens(question).map(stem))];
+  const queryText = normalized(question);
+  const matchingAliases = QUERY_ALIASES.filter((group) => group.phrases.some((phrase) => queryText.includes(normalized(phrase))));
+  const q = [...new Set([...tokens(question), ...matchingAliases.flatMap((group) => tokens(group.tokens))].map(stem))];
   if (!q.length) return [];
   return chunks
     .map((chunk) => {
@@ -44,6 +54,10 @@ export function retrieve(chunks, question, { limit = 5, pageId = "" } = {}) {
         if (title.includes(w)) score += 6;
         const hits = body.filter((b) => b === w).length;
         score += Math.min(hits, 4);
+      }
+      for (const alias of matchingAliases) {
+        if (alias.ids.includes(chunk.pageId)) score += 24;
+        else if (alias.phrases.some((phrase) => (chunk.aliases || []).some((tag) => normalized(tag).includes(normalized(phrase))))) score += 12;
       }
       if (pageId && chunk.pageId === pageId) score += 2;
       return { chunk, score };
@@ -74,5 +88,10 @@ export function buildMessages({ question, sources, history = [] }) {
 export function pickCited(answer, sources) {
   const cited = [...new Set([...String(answer).matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1]) - 1))].filter((i) => sources[i]);
   const list = (cited.length ? cited : sources.slice(0, 2).map((_, i) => i)).map((i) => sources[i]);
-  return list.slice(0, 3).map((s) => ({ id: s.pageId, title: s.title, heading: s.heading }));
+  const unique = new Map();
+  for (const source of list) {
+    const key = `${source.pageId}\u0000${source.heading || ""}`;
+    if (!unique.has(key)) unique.set(key, { id: source.pageId, title: source.title, heading: source.heading });
+  }
+  return [...unique.values()].slice(0, 3);
 }

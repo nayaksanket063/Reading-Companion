@@ -15,9 +15,10 @@ const QUOTES = [
   "पढ़ना एक नई दुनिया खोलता है 📚✨",
 ];
 
-test("the template registry exposes 12 unique entries with the complete contract", async () => {
-  assert.equal(GEM_TEMPLATES.length, 12);
-  assert.equal(new Set(GEM_TEMPLATES.map((template) => template.id)).size, 12);
+test("the template registry exposes Summit and ten redesigned entries", async () => {
+  assert.equal(GEM_TEMPLATES.length, 11);
+  assert.equal(new Set(GEM_TEMPLATES.map((template) => template.id)).size, 11);
+  assert.equal(GEM_TEMPLATES[0].name, "Summit");
   assert.deepEqual(Object.keys(ASPECT_SIZES), ["9:16"]);
   for (const template of GEM_TEMPLATES) {
     assert.equal(typeof template.id, "string");

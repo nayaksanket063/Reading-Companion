@@ -7,6 +7,10 @@ import path from "node:path";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dir = path.join(root, "frontend", "src", "docs", "private");
 const load = (name) => import(pathToFileURL(path.join(dir, `${name}.js`)).href);
+const optionalLoad = (name) => load(name).catch((error) => {
+  if (error?.code === "ERR_MODULE_NOT_FOUND") return {};
+  throw error;
+});
 
 const env = { ...process.env };
 try {
@@ -16,9 +20,21 @@ try {
   }
 } catch { /* backend/.env missing: rely on process env */ }
 
-const [story, arch, ops, ref, diagrams] = await Promise.all(["contentStory", "contentArch", "contentOps", "contentRef", "diagrams"].map(load));
+const [{ buildFeatureDocsPages }, story, arch, ops, ref, diagrams] = await Promise.all([
+  import("../frontend/src/featureManifest.js"),
+  ...["contentStory", "contentArch", "contentOps", "contentRef", "diagrams"].map(optionalLoad),
+]);
+const pageGroups = [
+  buildFeatureDocsPages(),
+  story.STORY_PAGES || [],
+  story.TOUR_PAGES || [],
+  arch.ARCH_PAGES || [],
+  ops.OPS_PAGES || [],
+  ref.REF_PAGES || [],
+];
+const pages = [...new Map(pageGroups.flat().map((page) => [page.id, page])).values()];
 const bundle = {
-  pages: [...story.STORY_PAGES, ...story.TOUR_PAGES, ...arch.ARCH_PAGES, ...ops.OPS_PAGES, ...ref.REF_PAGES],
+  pages,
   diagrams: diagrams.DIAGRAMS,
   flows: diagrams.FLOWS,
 };
