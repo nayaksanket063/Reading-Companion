@@ -113,7 +113,7 @@ const BASE_HELP_GUIDE = [
     title: "Author details and photo",
     keywords: ["author", "writer", "author details", "author bio", "author photo", "find photo online", "look up again", "edit author"],
     screen: "library",
-    content: "Tap **Author** on a book tile to see the author sheet. In view mode you can see the author name, bio and any saved portrait, then use **Find photo online** or **Look up again**. **Edit** switches to fields for the author name and bio, with **Save** and **Cancel**. The companion can also set the book’s author by voice during reading.",
+    content: "Tap **Author** on a book tile to see one profile for each author. Swipe the author tabs to switch profiles; each shows a round portrait or initials, a short bio and its source when available. Use **Find photo online** for a portrait, or **Edit** to update that author’s name and bio. If no bio is found, tap **Edit** to add one. The companion can also set a book’s author by voice during reading.",
   },
   {
     id: "chapters",

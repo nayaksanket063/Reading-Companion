@@ -102,6 +102,7 @@ import { createOpeningMicFallback, SessionMicGate } from "./sessionMicGate.js";
 import { SessionAudioMute } from "./sessionAudioMute.js";
 import { runSessionCleanup } from "./sessionCleanup.js";
 import { requestTextAnswer } from "./sessionTextQuestion.js";
+import { buildAuthorProfiles, fetchWikipediaAuthor, NO_BIO, normalizeAuthorName } from "./authorProfiles.js";
 import { sessionStatusView } from "./sessionStatus.js";
 import { summarizeLatencies } from "./sessionLatency.js";
 import { buildPageStatusNote, createPageContextProvider, loadPage, pageCanBeSentToLive, savePage } from "./sessionPage.js";
@@ -1793,55 +1794,106 @@ function LibraryScreen({ nav }) {
   }
   function openAuthorModal(book) {
     setPortraitSearching(false); setPortraitError(false);
+    const profiles = buildAuthorProfiles(book);
     setAuthorEditor({
       bookId: book.id,
-      authorName: book.authorName || "",
-      authorBio: book.authorBio || "",
-      authorPortrait: book.authorPortrait || "",
-      authorPortraits: book.authorPortraits || [],
+      profiles,
+      activeIndex: 0,
       mode: book.authorName ? "view" : "edit",
     });
+    profiles.filter((profile) => !profile.lookupDone && !profile.unsupported).forEach((profile) => {
+      void lookupAuthorProfile(book.id, profile);
+    });
+  }
+  function saveAuthorProfiles(bookId, profiles) {
+    const authors = profiles.filter((profile) => !profile.unsupported);
+    const authorName = authors.map((profile) => profile.name.trim()).filter(Boolean).join(" and ") || profiles[0]?.name || "";
+    const authorBio = authors.map((profile) => profile.bio).filter((bio) => bio && bio !== NO_BIO).join("\n\n");
+    library.updateBookMeta(bookId, {
+      authorName,
+      authorBio,
+      authorPortrait: profiles.find((profile) => profile.dataUrl)?.dataUrl || "",
+      authorPortraits: profiles,
+    });
+    refresh();
   }
   function saveAuthorInfo() {
     if (!authorEditor) return;
-    library.updateBookMeta(authorEditor.bookId, {
-      authorName: authorEditor.authorName,
-      authorBio: authorEditor.authorBio,
+    const { bookId, profiles } = authorEditor;
+    saveAuthorProfiles(bookId, profiles);
+    setAuthorEditor((current) => current ? { ...current, mode: "view" } : current);
+    profiles.filter((profile) => !profile.lookupDone && !profile.unsupported).forEach((profile) => {
+      void lookupAuthorProfile(bookId, profile);
     });
-    setAuthorEditor(null);
-    refresh();
   }
-  async function findAuthorPortrait(isAutoRetry = false) {
-    if (!authorEditor?.authorName) return;
+  function updateAuthorProfile(index, changes) {
+    setAuthorEditor((current) => current ? {
+      ...current,
+      profiles: current.profiles.map((profile, profileIndex) => profileIndex === index ? { ...profile, ...changes } : profile),
+    } : current);
+  }
+  async function lookupAuthorProfile(bookId, initialProfile) {
+    const currentBook = library.getBook(bookId);
+    const savedProfiles = buildAuthorProfiles(currentBook || {});
+    const profile = savedProfiles.find((entry) => normalizeAuthorName(entry.name) === normalizeAuthorName(initialProfile.name)) || initialProfile;
+    if (profile.lookupDone || profile.unsupported) return;
+    const cached = { ...profile, lookupDone: true };
+    const marked = savedProfiles.map((entry) => normalizeAuthorName(entry.name) === normalizeAuthorName(profile.name) ? cached : entry);
+    saveAuthorProfiles(bookId, marked);
     setPortraitSearching(true);
-    if (!isAutoRetry) setPortraitError(false);
+    let nextProfile = cached;
     try {
-      const res = await fetch(apiUrl("/api/author-portrait"), {
+      if (!profile.dataUrl) {
+        const response = await fetch(apiUrl("/api/author-portrait"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ authorName: profile.name, bookTitle: currentBook?.title || "" }),
+        });
+        const data = await response.json();
+        const match = (data.portraits || []).find((portrait) => normalizeAuthorName(portrait.name) === normalizeAuthorName(profile.name)) || data.portraits?.[0];
+        if (match?.dataUrl) nextProfile = { ...nextProfile, dataUrl: await shrinkDataUrl(match.dataUrl), sourceUrl: match.sourceUrl || null };
+      }
+      if (!profile.bio || profile.bio === NO_BIO) {
+        const wiki = await fetchWikipediaAuthor(profile.name);
+        nextProfile = wiki
+          ? { ...nextProfile, bio: wiki.bio, bioSource: "Wikipedia", bioSourceUrl: wiki.sourceUrl, dataUrl: nextProfile.dataUrl || wiki.thumbnail }
+          : { ...nextProfile, bio: NO_BIO };
+      }
+    } catch {
+      if (!profile.bio || profile.bio === NO_BIO) nextProfile = { ...nextProfile, bio: NO_BIO };
+    } finally {
+      const latestBook = library.getBook(bookId);
+      const latestProfiles = buildAuthorProfiles(latestBook || {});
+      const updatedProfiles = latestProfiles.map((entry) => normalizeAuthorName(entry.name) === normalizeAuthorName(profile.name) ? nextProfile : entry);
+      saveAuthorProfiles(bookId, updatedProfiles);
+      setAuthorEditor((current) => current?.bookId === bookId ? {
+        ...current,
+        profiles: current.profiles.map((entry) => normalizeAuthorName(entry.name) === normalizeAuthorName(profile.name) ? nextProfile : entry),
+      } : current);
+      setPortraitSearching(false);
+    }
+  }
+  async function findAuthorPortrait() {
+    if (!authorEditor) return;
+    const profile = authorEditor.profiles[authorEditor.activeIndex];
+    if (!profile || profile.unsupported) return;
+    setPortraitSearching(true);
+    setPortraitError(false);
+    try {
+      const response = await fetch(apiUrl("/api/author-portrait"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ authorName: authorEditor.authorName, bookTitle: library.getBook(authorEditor.bookId)?.title || "", tried: authorEditor.tried || [] }),
+        body: JSON.stringify({ authorName: profile.name, bookTitle: library.getBook(authorEditor.bookId)?.title || "" }),
       });
-      const data = await res.json();
-      const fallbackPortraits = data?.dataUrl ? [{ name: authorEditor.authorName, dataUrl: data.dataUrl, sourceUrl: data.sourceUrl || null }] : [];
-      const list = await Promise.all((data.portraits || fallbackPortraits).map(async (p) => ({ name: p.name || authorEditor.authorName, dataUrl: p.dataUrl ? await shrinkDataUrl(p.dataUrl) : null, sourceUrl: p.sourceUrl || null })));
-      const firstUrl = list.find((p) => p.dataUrl)?.dataUrl || "";
-      if (firstUrl) {
-        library.updateBookMeta(authorEditor.bookId, { authorPortrait: firstUrl, authorPortraits: list });
-        const newTried = (data.portraits || fallbackPortraits).map((p) => p.sourceUrl).filter(Boolean);
-        setAuthorEditor((prev) => ({ ...prev, authorPortrait: firstUrl, authorPortraits: list, tried: [...(prev.tried || []), ...newTried] }));
-        refresh();
-        return;
-      }
-      if (res.status === 503 && !isAutoRetry) {
-        // sources were rate-limited, not empty - quietly try once more
-        setTimeout(() => findAuthorPortrait(true), 6000);
-        return;
-      }
-      throw new Error(data?.error || "not_found");
+      const data = await response.json();
+      const match = (data.portraits || []).find((portrait) => normalizeAuthorName(portrait.name) === normalizeAuthorName(profile.name)) || data.portraits?.[0];
+      if (!match?.dataUrl) throw new Error(data?.error || "not_found");
+      const nextProfile = { ...profile, dataUrl: await shrinkDataUrl(match.dataUrl), sourceUrl: match.sourceUrl || null, lookupDone: true };
+      const nextProfiles = authorEditor.profiles.map((entry, index) => index === authorEditor.activeIndex ? nextProfile : entry);
+      saveAuthorProfiles(authorEditor.bookId, nextProfiles);
+      setAuthorEditor((current) => current ? { ...current, profiles: nextProfiles } : current);
     } catch {
       setPortraitError(true);
-      setAuthorEditor((prev) => (prev ? { ...prev, tried: [] } : prev));
-      if (!isAutoRetry) notify("Author ki photo online nahi mil payi - naam ki spelling check karke phir try karein.", "error");
     } finally {
       setPortraitSearching(false);
     }
@@ -1899,38 +1951,32 @@ function LibraryScreen({ nav }) {
           <Motion.div className="modal-card elevated author-modal" initial={{ opacity: 0, y: 18, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={INTERACTION_SPRING} onClick={(e) => e.stopPropagation()}>
             {authorEditor.mode === "view" ? (
               <>
-              <div className="author-info-card">
-                  {(() => {
-                    const faces = authorEditor.authorPortraits?.length
-                      ? authorEditor.authorPortraits
-                      : [{ name: authorEditor.authorName, dataUrl: authorEditor.authorPortrait }];
-                    const hasAny = faces.some((f) => f.dataUrl);
-                    return (
-                      <>
-                        <div className={`author-faces n${faces.length}`}>
-                          {faces.map((f, i) => (
-                            <div className="author-face" key={i}>
-                              {f.dataUrl
-                                ? <img className="author-info-portrait" src={f.dataUrl} alt={f.name} />
-                                : <div className="author-info-avatar">{(f.name || "?")[0]?.toUpperCase()}</div>}
-                              {faces.length > 1 && <span className="author-face-name">{f.name}</span>}
-                            </div>
-                          ))}
-                        </div>
-                        <div className="author-info-name">{authorEditor.authorName}</div>
-                        {authorEditor.authorBio && <div className="author-info-bio">{authorEditor.authorBio}</div>}
-                        {portraitSearching ? (
-                          <div className="portrait-generating-hint">Searching online...</div>
-                        ) : (
-                          <button className="icon-button ghost portrait-generate-btn" onClick={findAuthorPortrait}>
-                            {hasAny ? <RefreshCw size={14} /> : <Search size={14} />}{" "}
-                            {portraitError ? "No photo found - Retry" : hasAny ? "Look up again" : "Find photo online"}
-                          </button>
-                        )}
-                      </>
-                    );
-                  })()}
+                <div className="author-profile-tabs" role="tablist" aria-label="Book authors">
+                  {authorEditor.profiles.map((profile, index) => (
+                    <button key={`${profile.name}-${index}`} type="button" role="tab" aria-selected={authorEditor.activeIndex === index} onClick={() => setAuthorEditor((current) => ({ ...current, activeIndex: index }))}>{profile.name || "Author"}</button>
+                  ))}
                 </div>
+                {(() => {
+                  const profile = authorEditor.profiles[authorEditor.activeIndex] || authorEditor.profiles[0];
+                  return (
+                    <div className="author-info-card">
+                      {profile.dataUrl
+                        ? <img className="author-info-portrait" src={profile.dataUrl} alt={profile.name} />
+                        : <div className="author-info-avatar">{Array.from(profile.name || "A")[0]?.toLocaleUpperCase()}</div>}
+                      <div className="author-info-name">{profile.name || "Author"}</div>
+                      <div className="author-info-bio">{profile.bio || NO_BIO}</div>
+                      {profile.bioSource === "Wikipedia" && <small className="author-bio-source">Source: <a href={profile.bioSourceUrl} target="_blank" rel="noreferrer">Wikipedia</a></small>}
+                      {portraitSearching ? (
+                        <div className="portrait-generating-hint">Searching online...</div>
+                      ) : (
+                        <button className="icon-button ghost portrait-generate-btn" onClick={findAuthorPortrait}>
+                          {profile.dataUrl ? <RefreshCw size={14} /> : <Search size={14} />} {" "}
+                          {portraitError ? "No photo found - Retry" : profile.dataUrl ? "Look up again" : "Find photo online"}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
                 <div className="modal-actions">
                   <button className="icon-button ghost" onClick={() => setAuthorEditor(null)}>Close</button>
                   <button className="primary-button" onClick={() => setAuthorEditor((prev) => ({ ...prev, mode: "edit" }))}>Edit</button>
@@ -1941,19 +1987,19 @@ function LibraryScreen({ nav }) {
                 <h2>Author details</h2>
                 <input
                   className="title-input compact"
-                  value={authorEditor.authorName}
-                  onChange={(e) => setAuthorEditor((prev) => ({ ...prev, authorName: e.target.value }))}
+                  value={authorEditor.profiles[authorEditor.activeIndex]?.name || ""}
+                  onChange={(e) => updateAuthorProfile(authorEditor.activeIndex, { name: e.target.value, bio: "", dataUrl: "", sourceUrl: null, bioSource: "", bioSourceUrl: "", lookupDone: false })}
                   placeholder="Author name"
                 />
                 <textarea
                   className="author-bio-input"
-                  value={authorEditor.authorBio}
-                  onChange={(e) => setAuthorEditor((prev) => ({ ...prev, authorBio: e.target.value }))}
-                  placeholder="Comprehensive author bio (a few sentences)"
+                  value={authorEditor.profiles[authorEditor.activeIndex]?.bio === NO_BIO ? "" : authorEditor.profiles[authorEditor.activeIndex]?.bio || ""}
+                  onChange={(e) => updateAuthorProfile(authorEditor.activeIndex, { bio: e.target.value })}
+                  placeholder="Short author bio"
                   rows={5}
                 />
                 <div className="modal-actions">
-                  <button className="icon-button ghost" onClick={() => setAuthorEditor(null)}>Cancel</button>
+                  <button className="icon-button ghost" onClick={() => openAuthorModal(library.getBook(authorEditor.bookId))}>Cancel</button>
                   <button className="primary-button" onClick={saveAuthorInfo}>Save</button>
                 </div>
               </>
