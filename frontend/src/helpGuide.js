@@ -262,9 +262,9 @@ const BASE_HELP_GUIDE = [
   {
     id: "gem-detail",
     title: "Gem detail, illustrations and downloads",
-    keywords: ["gem detail", "illustration", "generate illustration", "regenerate", "retry", "real-life application", "download gem", "share gem", "gem card template", "quote card style", "card aspect ratio", "surprise me", "editorial paper", "polaroid card", "cosmic card"],
+    keywords: ["gem detail", "illustration", "generate illustration", "regenerate", "retry", "real-life application", "download gem", "share gem", "gem card color effect", "quote card style", "noir", "aurora", "sunset", "ocean", "forest", "rose", "mono", "vintage", "neon"],
     screen: "gems",
-    content: "A gem detail page shows the quote, book, author and chapter. **Generate illustration** lets you choose styles such as **Lo-fi Ghibli**, **Charcoal Sketch**, **Cinematic Silhouette** and **White Ink Sketch**. **Regenerate** or **Retry** appear when needed. The detail page also shows the **Real-life application**. Use **Download** or **Share** to open the quote-card studio. Pick one of 14 layouts in the horizontal template strip, previewed with your quote; choose **Story** (9:16), **Post** (4:5) or **Square** (1:1), and select a color effect to set its accent. **Surprise me** picks a template and effect. Your last template, effect and ratio are saved on this device. Export creates a 1080-pixel-wide PNG; photo layouts use a generated-color fallback if an image is missing or unavailable.",
+    content: "A gem detail page shows the quote, book, author and chapter. **Generate illustration** lets you choose styles such as **Lo-fi Ghibli**, **Charcoal Sketch**, **Cinematic Silhouette** and **White Ink Sketch**. **Regenerate** or **Retry** appear when needed. The detail page also shows the **Real-life application**. Use **Download** or **Share** to open the original quote card in fixed Story format (9:16), exported as a 1080 × 1920 PNG. Choose a color effect from **Noir**, **Aurora**, **Sunset**, **Ocean**, **Forest**, **Rose**, **Mono**, **Vintage** or **Neon**. The effect returns to Noir when the card is opened again; saved gems and quotes are unchanged.",
   },
   {
     id: "memory",
