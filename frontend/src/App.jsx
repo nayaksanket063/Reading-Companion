@@ -101,6 +101,7 @@ import { GeminiLiveClient } from "./geminiLiveClient.js";
 import { createOpeningMicFallback, SessionMicGate } from "./sessionMicGate.js";
 import { SessionAudioMute } from "./sessionAudioMute.js";
 import { runSessionCleanup } from "./sessionCleanup.js";
+import { requestTextAnswer } from "./sessionTextQuestion.js";
 import { sessionStatusView } from "./sessionStatus.js";
 import { summarizeLatencies } from "./sessionLatency.js";
 import { buildPageStatusNote, createPageContextProvider, loadPage, pageCanBeSentToLive, savePage } from "./sessionPage.js";
@@ -2986,6 +2987,8 @@ function SessionScreen({ bookId, onEnd, onRestart, onUsageSecond, onDailyLimit }
   const [asking, setAsking] = useState(false);
   const [handsFree, setHandsFree] = useState(false);
   const [typedQuestion, setTypedQuestion] = useState("");
+  const [typedQuestionOpen, setTypedQuestionOpen] = useState(false);
+  const [voiceRetryError, setVoiceRetryError] = useState("");
   const [pageNumberInput, setPageNumberInput] = useState("");
   const chapterPathRef = useRef(null);
   const [textBusy, setTextBusy] = useState(false);
@@ -3259,7 +3262,28 @@ function SessionScreen({ bookId, onEnd, onRestart, onUsageSecond, onDailyLimit }
   }
 
   async function warmSessionAfterUnmute() {
-    await ensureConnected({ silent: true });
+    const client = clientRef.current;
+    if (!client) throw new Error("Voice connection is not ready yet.");
+    if (client.stopped) {
+      await client.retry();
+    } else {
+      const backoff = [500, 1500, 3000];
+      let lastError;
+      for (let attempt = 0; attempt < backoff.length; attempt += 1) {
+        try {
+          await ensureConnected({ silent: true });
+          lastError = null;
+          break;
+        } catch (error) {
+          lastError = error;
+          if (attempt < backoff.length - 1) {
+            setStatus("Reconnecting…");
+            await new Promise((resolve) => setTimeout(resolve, backoff[attempt]));
+          }
+        }
+      }
+      if (lastError) throw lastError;
+    }
     if (!mutedRef.current) setStatus("Listening for your question");
   }
 
@@ -3304,42 +3328,9 @@ function SessionScreen({ bookId, onEnd, onRestart, onUsageSecond, onDailyLimit }
     }, 10_000);
   }
 
-  function startAsk() {
-    if (LEGACY_STREAMING || asking || mutedRef.current || muted || restorePrompt || snapBusy) return;
-    if (!audioCaptureRef.current?.stream) {
-      notify("Mic ready nahi hai. Permission allow karke dobara try kijiye.", "error");
-      return;
-    }
-    clearTimeout(warmTimerRef.current);
-    askingRef.current = true;
-    setAsking(true);
-    questionInFlightRef.current = true;
-    markActive();
-    audioPlaybackRef.current?.clear();
-    micGateRef.current?.start();
-    armFollowUp();
-    void ensureConnected().catch(() => {
-      askingRef.current = false;
-      clearTimeout(followTimerRef.current);
-      micGateRef.current?.reset();
-      questionInFlightRef.current = false;
-      setAsking(false);
-    });
-  }
-
-  function stopAsk() {
-    if (LEGACY_STREAMING) return;
-    endAskNow();
-    setStatus("Ready for the next question");
-  }
-
   function toggleAsk() {
     triggerLightTap();
-    if (muted) {
-      notify("Voice abhi unavailable hai. Upar ke notice se Retry connection dabaiye.", "info");
-      return;
-    }
-    if (asking) stopAsk(); else startAsk();
+    setTypedQuestionOpen((open) => !open);
   }
 
   function stopAutoListen() {
@@ -3528,7 +3519,6 @@ function SessionScreen({ bookId, onEnd, onRestart, onUsageSecond, onDailyLimit }
       notify(`Hands-free unavailable: ${error.message}`, "error");
     }
   }
-// eslint-disable-next-line no-unused-vars
   async function askByTyping(event) {
     event.preventDefault();
     const question = typedQuestion.trim();
@@ -3536,21 +3526,14 @@ function SessionScreen({ bookId, onEnd, onRestart, onUsageSecond, onDailyLimit }
     setTextBusy(true);
     markActive();
     try {
-      const response = await fetch(apiUrl("/api/reading/ask-text"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const answer = await requestTextAnswer(fetch, apiUrl("/api/reading/ask-text"), {
           question,
           context: `${buildLiveContext().slice(-12000)}\n${buildPageStatusNote(pageRef.current, ghostModeRef.current)}`,
           pageStatus: pageCanBeSentToLive(pageRef.current) ? "verified_book_page" : pageRef.current ? "unverified" : "none",
           verification: pageRef.current?.verification || null,
           transcription: pageRef.current?.verification?.text || "",
           image: pageCanBeSentToLive(pageRef.current) ? pageRef.current.base64 : "",
-        }),
       });
-      if (!response.ok) throw new Error(response.status === 429 ? "Too many questions right now. Please try later." : "Text answer unavailable. Please retry.");
-      const { answer } = await response.json();
-      if (!answer) throw new Error("No answer received. Please retry.");
       appendLine("reader", question);
       appendLine("companion", answer);
       setTypedQuestion("");
@@ -4564,6 +4547,7 @@ const recapLine = recap ? `\n\nRECENT CONVERSATION with this reader (earlier, fo
         if (!nextMuted) muteStartedAtRef.current = null;
         mutedRef.current = nextMuted;
         setMuted(nextMuted);
+        if (!nextMuted) setVoiceRetryError("");
         if (nextMuted) {
           askingRef.current = false;
           questionInFlightRef.current = false;
@@ -4575,9 +4559,14 @@ const recapLine = recap ? `\n\nRECENT CONVERSATION with this reader (earlier, fo
       },
       onStatus: (nextStatus, error) => {
         if (error) console.warn("[VOICE] muted-session warm failed", error?.message || error);
+        if (nextStatus === "reconnecting") setVoiceRetryError("");
         setStatus(nextStatus === "reconnecting" ? "Reconnecting…" : nextStatus === "muted" ? "Mic muted" : nextStatus);
       },
-      onError: (error) => notify(friendlyErrorMessage(error, "Microphone permission is needed to unmute."), "error"),
+      onError: (error) => {
+        const message = friendlyErrorMessage(error, "Voice connection could not be restored. Tap Retry or try unmuting again.");
+        setVoiceRetryError(message);
+        setStatus("Voice unavailable");
+      },
     });
     const [conn, mic] = await Promise.allSettled([
       LEGACY_STREAMING ? clientRef.current.connect() : Promise.resolve(),
@@ -4684,14 +4673,14 @@ const recapLine = recap ? `\n\nRECENT CONVERSATION with this reader (earlier, fo
       </div>
 
       <AnimatePresence>
-        {liveNotice && (
-          <Motion.div key={liveNotice.code} className="hud-notice" initial={{ opacity: 0, y: 14, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.97 }} transition={INTERACTION_SPRING}>
+        {(liveNotice || voiceRetryError) && (
+          <Motion.div key={voiceRetryError ? "voice-retry" : liveNotice.code} className="hud-notice" initial={{ opacity: 0, y: 14, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.97 }} transition={INTERACTION_SPRING}>
             <ServiceNotice
               compact
-              kind={liveNotice.kind}
-              title={liveNotice.title}
-              detail={liveNotice.detail}
-              actions={liveNotice.code === "lost" ? [{ label: "End session", onClick: handleEnd, primary: true }] : []}
+              kind={voiceRetryError ? "error" : liveNotice.kind}
+              title={voiceRetryError ? "Voice connection unavailable" : liveNotice.title}
+              detail={voiceRetryError || liveNotice.detail}
+              actions={voiceRetryError ? [{ label: "Retry", onClick: toggleMute, primary: true }] : liveNotice.code === "lost" ? [{ label: "End session", onClick: handleEnd, primary: true }] : []}
             />
           </Motion.div>
         )}
@@ -4751,6 +4740,22 @@ const recapLine = recap ? `\n\nRECENT CONVERSATION with this reader (earlier, fo
           </div>
         </div>
       )}
+      {!LEGACY_STREAMING && typedQuestionOpen && (
+        <form className="session-ask" onSubmit={askByTyping} aria-label="Type a question">
+          <div className="session-text-fallback">
+            <input
+              autoFocus
+              type="text"
+              value={typedQuestion}
+              onChange={(event) => setTypedQuestion(event.target.value)}
+              placeholder="Type a question"
+              aria-label="Type a question"
+              disabled={textBusy}
+            />
+            <button type="submit" disabled={textBusy || !typedQuestion.trim()}>{textBusy ? "Sending…" : "Send"}</button>
+          </div>
+        </form>
+      )}
       <input ref={snapFileRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { handleSnapshotFile(e.target.files?.[0]); e.target.value = ""; }} />
 
       <div className="glass-dock">
@@ -4760,7 +4765,7 @@ const recapLine = recap ? `\n\nRECENT CONVERSATION with this reader (earlier, fo
           </Motion.button>
         ) : (
           <>
-            <Motion.button className={`hud-btn ${asking ? "active" : ""}`} whileTap={reduceMotion ? undefined : { scale: 0.94 }} transition={INTERACTION_SPRING} onClick={toggleAsk} aria-label={asking ? "Stop asking" : "Ask a question"} title={asking ? "Stop asking" : "Ask a question"}><Mic size={22} /></Motion.button>
+            <Motion.button className={`hud-btn ${typedQuestionOpen ? "active" : ""}`} whileTap={reduceMotion ? undefined : { scale: 0.94 }} transition={INTERACTION_SPRING} onClick={toggleAsk} aria-label={typedQuestionOpen ? "Close typed question" : "Type a question"} title={typedQuestionOpen ? "Close typed question" : "Type a question"}><MessageSquareText size={22} /></Motion.button>
             <Motion.button className={`hud-btn mic-mute-btn ${muted ? "active" : ""}`} whileTap={reduceMotion ? undefined : { scale: 0.94 }} transition={INTERACTION_SPRING} onClick={toggleMute} aria-pressed={muted} aria-label={muted ? "Unmute microphone" : "Mute microphone"} title={muted ? "Unmute microphone" : "Mute microphone"}>{muted ? <MicOff size={22} /> : <Mic size={22} />}</Motion.button>
           </>
         )}
