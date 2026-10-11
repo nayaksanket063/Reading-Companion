@@ -608,12 +608,21 @@ function AppCore() {
   // Tapping a report-status notification opens the app on Your Reports.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("open") !== "reports") return;
-    try { sessionStorage.setItem("rc-open-reports", "1"); } catch { /* storage unavailable */ }
+    const destination = params.get("open");
+    if (destination !== "reports" && destination !== "update") return;
+    if (destination === "reports") {
+      try {
+        sessionStorage.setItem("rc-open-reports", "1");
+        const reportId = params.get("reportId");
+        if (reportId) sessionStorage.setItem("rc-open-report-id", reportId);
+      } catch { /* storage unavailable */ }
+    }
     params.delete("open");
+    params.delete("reportId");
     const query = params.toString();
     window.history.replaceState({ screen: "dashboard" }, "", window.location.pathname + (query ? `?${query}` : "") + window.location.hash);
-    navigateTo("report");
+    if (destination === "reports") navigateTo("report");
+    else window.dispatchEvent(new CustomEvent("app:open-update"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

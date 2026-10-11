@@ -1650,8 +1650,8 @@ app.post("/api/push/send", async (req, res) => {
 });
 
 const REPORT_STATUS_LABELS = {
-  seen: "Seen", review: "Under review", rejected: "Rejected", approved: "Approved",
-  in_progress: "Work in progress", testing: "Testing", done: "Completed",
+  seen: "Seen", review: "In review", rejected: "Rejected", approved: "Approved",
+  in_progress: "In progress", testing: "Testing", done: "Done",
 };
 
 // Supabase Database Webhook (bug_reports UPDATE) -> push to the reporter's device.
@@ -1663,15 +1663,21 @@ app.post("/api/push/report-status", async (req, res) => {
   if (!record || !record.push_endpoint) return res.json({ skipped: "no_endpoint" });
   const norm = (s) => String(s ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
   const status = norm(record.status);
-  if (previous && norm(previous.status) === status) return res.json({ skipped: "status_unchanged" });
+  if (previous && norm(previous.status) === status && String(previous.status_note || "") === String(record.status_note || "")) {
+    return res.json({ skipped: "status_unchanged" });
+  }
   const label = REPORT_STATUS_LABELS[status];
   if (!label) return res.json({ skipped: "status_not_notifiable" });
-  const version = status === "done" && record.resolved_in_version ? ` in v${record.resolved_in_version}` : "";
+  const ticket = String(record.ticket_number || "").replace(/\D/g, "").slice(-6).padStart(6, "0");
+  const reportUrl = `/?open=reports&reportId=${encodeURIComponent(String(record.id || ""))}`;
   const payload = buildPushPayload({
-    title: "Your report was updated",
-    body: `${record.ticket_number ? "Report #" + record.ticket_number : "Your report"} is now ${label}${version}`,
-    url: "/?open=reports",
+    type: "report_status",
+    title: `${ticket ? `Report #${ticket}` : "Your report"} is now ${label}`,
+    body: String(record.status_note || "Status updated. Open your report for details."),
+    url: reportUrl,
+    data: { url: reportUrl },
     tag: `report-${record.id}`,
+    actions: [{ action: "view-report", title: "View report", url: reportUrl }],
   });
   if (!payload) return res.json({ skipped: "invalid_payload" });
   try {

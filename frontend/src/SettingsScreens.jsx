@@ -722,14 +722,12 @@ async function fetchReportFromSupabase(reportId, userId) {
 // Only reports this device submitted are synced; matching by reporter name would pull in other people's reports.
 async function syncReportsFromSupabase(userId) {
   if (!SUPABASE_URL || !SUPABASE_KEY || !userId) return [];
-  const ownedIds = loadReports().map((item) => item.id).filter((id) => /^r-\d+$/.test(id || ""));
-  if (!ownedIds.length) return [];
   try {
     const url = new URL(`${SUPABASE_URL}/rest/v1/bug_reports`);
     url.searchParams.set("select", "*");
     url.searchParams.set("order", "created_at.desc");
-    url.searchParams.set("id", `in.(${ownedIds.join(",")})`);
     url.searchParams.set("owner_user_id", `eq.${userId}`);
+    url.searchParams.set("limit", "1000");
     const res = await fetch(url.toString(), {
       headers: await reportAuthHeaders(),
     });
@@ -823,12 +821,16 @@ export function ReportScreen({ nav, stores }) {
     try { return sessionStorage.getItem("rc-open-reports") === "1" ? "reports" : "compose"; } catch { return "compose"; }
   });
   const [reportFilter, setReportFilter] = useState("all");
-  const [selectedId, setSelectedId] = useState(null);
+  const [selectedId, setSelectedId] = useState(() => {
+    try { return sessionStorage.getItem("rc-open-report-id") || null; } catch { return null; }
+  });
   const [releaseView, setReleaseView] = useState(null);
   const [list, setList] = useState(loadReports);
   const [msg, setMsg] = useState("");
   const [refreshingReports, setRefreshingReports] = useState(false);
   const [refreshingOne, setRefreshingOne] = useState(false);
+  const [reportSyncLoaded, setReportSyncLoaded] = useState(false);
+  const initialNotificationReportRef = useRef(selectedId);
   const [rewrite, setRewrite] = useState(null);
   const rewriteRequestRef = useRef(0);
   const fileRef = useRef(null);
@@ -842,6 +844,7 @@ export function ReportScreen({ nav, stores }) {
 
   useEffect(() => {
     try { sessionStorage.removeItem("rc-open-reports"); } catch { /* storage unavailable */ }
+    try { sessionStorage.removeItem("rc-open-report-id"); } catch { /* storage unavailable */ }
   }, []);
 
   useBackLayer(view === "reports" && Boolean(selectedId), () => setSelectedId(null));
@@ -917,12 +920,19 @@ export function ReportScreen({ nav, stores }) {
   useEffect(() => {
     let active = true;
     async function sync() {
-      if (!SUPABASE_URL || !SUPABASE_KEY) return;
-      const remote = await syncReportsFromSupabase(nav.userId);
-      if (!active || !remote.length) return;
-      const local = loadReports();
-      const merged = [...remote, ...local.filter((item) => !remote.some((row) => row.id === item.id))];
-      persist(merged.slice(0, 25));
+      if (!SUPABASE_URL || !SUPABASE_KEY || !nav.userId) {
+        setReportSyncLoaded(true);
+        return;
+      }
+      try {
+        const remote = await syncReportsFromSupabase(nav.userId);
+        if (!active) return;
+        const local = loadReports();
+        const merged = [...remote, ...local.filter((item) => !remote.some((row) => row.id === item.id))];
+        persist(merged.slice(0, 25));
+      } finally {
+        if (active) setReportSyncLoaded(true);
+      }
     }
     sync();
     return () => { active = false; };
@@ -930,9 +940,13 @@ export function ReportScreen({ nav, stores }) {
 
   useEffect(() => {
     if (selectedId && !filteredReports.some((item) => item.id === selectedId)) {
+      if (initialNotificationReportRef.current === selectedId && !reportSyncLoaded) return;
+      initialNotificationReportRef.current = null;
       setSelectedId(null);
+    } else if (selectedId) {
+      initialNotificationReportRef.current = null;
     }
-  }, [filteredReports, selectedId]);
+  }, [filteredReports, selectedId, reportSyncLoaded]);
 
   async function flush(current) {
     let changed = false;
