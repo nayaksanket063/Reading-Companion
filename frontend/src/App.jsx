@@ -100,6 +100,7 @@ import { describeLiveStatus, friendlyErrorMessage } from "./friendlyErrors.js";
 import { GeminiLiveClient } from "./geminiLiveClient.js";
 import { createOpeningMicFallback, SessionMicGate } from "./sessionMicGate.js";
 import { SessionAudioMute } from "./sessionAudioMute.js";
+import { runSessionCleanup } from "./sessionCleanup.js";
 import { sessionStatusView } from "./sessionStatus.js";
 import { summarizeLatencies } from "./sessionLatency.js";
 import { buildPageStatusNote, createPageContextProvider, loadPage, pageCanBeSentToLive, savePage } from "./sessionPage.js";
@@ -458,7 +459,7 @@ function shrinkDataUrl(dataUrl, max = 320) {
 class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(error) { return { error }; }
-  componentDidCatch(error) { console.error("[APP] screen crashed", error); }
+  componentDidCatch(error, info) { console.error("[APP] screen crashed", error, info?.componentStack); }
   render() {
     if (this.state.error) {
       return (
@@ -466,9 +467,8 @@ class ErrorBoundary extends Component {
           <div className="aurora-bg" />
           <h2>Yeh screen khul nahi paayi</h2>
           <p className="crash-message">App mein chhoti si gadbad ho gayi. Aapka saved data safe hai. Home par jaakar dobara try kijiye.</p>
-          <button className="primary-button" onClick={() => { this.setState({ error: null }); this.props.onReset?.(); }}>
-            Go home
-          </button>
+          <button className="primary-button" onClick={() => { this.setState({ error: null }); this.props.onRetry?.(); }}>Try again</button>
+          <button className="icon-button ghost" onClick={() => { this.setState({ error: null }); this.props.onReset?.(); }}>Go home</button>
         </div>
       );
     }
@@ -807,11 +807,11 @@ function AppCore() {
   };
 
   return (
-    <ErrorBoundary key={resetKey} onReset={() => { setResetKey((k) => k + 1); navigateTo("dashboard"); }}>
+    <ErrorBoundary key={resetKey} onRetry={() => setResetKey((k) => k + 1)} onReset={() => { setResetKey((k) => k + 1); navigateTo("dashboard"); }}>
       {screen === "session" ? (
         <SessionScreen
           bookId={activeBookId}
-          onEnd={async () => { await flushReadingUsage(); nav.goBack(); }}
+          onEnd={async () => { try { await flushReadingUsage(); } finally { nav.goBack(); } }}
           onRestart={() => restartReadingSession(activeBookId)}
           onUsageSecond={recordActiveReadingSeconds}
           onDailyLimit={handleDailyLimit}
@@ -2946,6 +2946,7 @@ function SessionScreen({ bookId, onEnd, onRestart, onUsageSecond, onDailyLimit }
   const onUsageSecondRef = useRef(onUsageSecond);
   const onDailyLimitRef = useRef(onDailyLimit);
   const handleEndRef = useRef(null);
+  const endPromiseRef = useRef(null);
   onUsageSecondRef.current = onUsageSecond;
   onDailyLimitRef.current = onDailyLimit;
   const book = library.getBook(bookId);
@@ -4600,25 +4601,34 @@ const recapLine = recap ? `\n\nRECENT CONVERSATION with this reader (earlier, fo
   }
 
   async function handleEnd({ restart = false } = {}) {
-    clearTimeout(warmTimerRef.current);
-    clearOpeningMicFallback();
-    micGateRef.current?.reset();
-    if (vadRef.current) {
-      await vadRef.current.destroy().catch((error) => console.warn("[VAD] cleanup failed", error));
+    if (endPromiseRef.current) return endPromiseRef.current;
+    endingRef.current = true;
+    endPromiseRef.current = (async () => {
+      await runSessionCleanup([
+        ["timers", () => { clearTimeout(warmTimerRef.current); clearOpeningMicFallback(); }],
+        ["mic gate", () => micGateRef.current?.reset()],
+      ], (label, error) => console.warn(`[SESSION] ${label} cleanup failed`, error));
+      const vad = vadRef.current;
       vadRef.current = null;
-    }
-    library.endSession(bookId);
-    audioCaptureRef.current?.stop();
-    audioPlaybackRef.current?.close();
-    stopCameraNow();
-    await clientRef.current?.close();
-    if (restart) {
-      await finalizeSessionArtifacts();
-      onRestart?.();
-    } else {
-      onEnd();
-      void finalizeSessionArtifacts();
-    }
+      await runSessionCleanup([
+        ["VAD", () => vad?.destroy?.()],
+        ["reading session", () => library.endSession(bookId)],
+        ["microphone", () => audioCaptureRef.current?.stop()],
+        ["playback", () => audioPlaybackRef.current?.close()],
+        ["camera", () => stopCameraNow()],
+        ["Live connection", () => clientRef.current?.close()],
+      ], (label, error) => console.warn(`[SESSION] ${label} cleanup failed`, error));
+      if (restart) {
+        await finalizeSessionArtifacts();
+        endPromiseRef.current = null;
+        endingRef.current = false;
+        onRestart?.();
+      } else {
+        try { await onEnd?.(); } catch (error) { console.error("[SESSION] end navigation failed", error); }
+        finally { void finalizeSessionArtifacts(); }
+      }
+    })();
+    return endPromiseRef.current;
   }
   handleEndRef.current = handleEnd;
 
