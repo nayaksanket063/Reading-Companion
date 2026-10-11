@@ -4708,7 +4708,6 @@ const recapLine = recap ? `\n\nRECENT CONVERSATION with this reader (earlier, fo
           <span key={`w-${sessionStats.words}`}><BookOpen size={13} /> {sessionStats.words} words</span>
           <span key={`g-${sessionStats.gems}`}><Gem size={13} /> {sessionStats.gems} gems</span>
           {snapshot && <span key={`p-${snapshot.page}`}><ScanText size={13} /> {snapshot.pageNumber ? `Page ${snapshot.pageNumber}` : `Snapshot ${snapshot.page}`}</span>}
-          {muted && <span className="muted-chip"><MicOff size={13} /> Muted</span>}
         </div>
       </div>
 
@@ -4750,7 +4749,7 @@ const recapLine = recap ? `\n\nRECENT CONVERSATION with this reader (earlier, fo
           </Motion.button>
         ) : (
           <>
-            <Motion.button className={`hud-btn ${asking ? "active" : ""}`} whileTap={reduceMotion ? undefined : { scale: 0.94 }} transition={INTERACTION_SPRING} onClick={toggleAsk} aria-label={asking ? "Stop asking" : "Ask a question"} title={asking ? "Stop asking" : "Ask a question"}><Mic size={22} /></Motion.button>
+            <Motion.button className={`hud-btn ${asking ? "active" : ""}`} whileTap={reduceMotion ? undefined : { scale: 0.94 }} transition={INTERACTION_SPRING} onClick={toggleAsk} aria-label={asking ? "Stop asking" : "Ask a question"} title={asking ? "Stop asking" : "Ask a question"}><MessageCircleMore size={22} /></Motion.button>
             <Motion.button className={`hud-btn mic-mute-btn ${muted ? "active" : ""}`} whileTap={reduceMotion ? undefined : { scale: 0.94 }} transition={INTERACTION_SPRING} onClick={toggleMute} aria-pressed={muted} aria-label={muted ? "Unmute microphone" : "Mute microphone"} title={muted ? "Unmute microphone" : "Mute microphone"}>{muted ? <MicOff size={22} /> : <Mic size={22} />}</Motion.button>
           </>
         )}

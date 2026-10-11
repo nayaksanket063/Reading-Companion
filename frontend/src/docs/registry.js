@@ -1,11 +1,18 @@
 import { apiFetch } from "../api.js";
 import { supabaseClient } from "../supabaseClient.js";
+import { buildFeatureDocsPages } from "../featureManifest.js";
 
 // Docs content is never committed. On a machine that has ./private it is bundled directly;
 // elsewhere it is downloaded (owner-only) from the backend and cached for offline reading.
 const mods = import.meta.glob(["./private/*.js", "!./private/*.test.js"], { eager: true });
 const pick = (name) => mods[`./private/${name}.js`] || {};
 const CACHE_KEY = "rc_docs_bundle_v1";
+const FEATURE_PAGES = buildFeatureDocsPages();
+let bundleLoaded = false;
+
+function mergePages(...groups) {
+  return [...new Map(groups.flat().map((page) => [page.id, page])).values()];
+}
 
 export const DIAGRAMS = {};
 export const FLOWS = {};
@@ -19,13 +26,12 @@ export function hydrateDocs({ pages = [], diagrams = {}, flows = {} }) {
 }
 
 hydrateDocs({
-  pages: [
+  pages: mergePages(FEATURE_PAGES,
     ...(pick("contentStory").STORY_PAGES || []),
     ...(pick("contentStory").TOUR_PAGES || []),
     ...(pick("contentArch").ARCH_PAGES || []),
     ...(pick("contentOps").OPS_PAGES || []),
-    ...(pick("contentRef").REF_PAGES || []),
-  ],
+    ...(pick("contentRef").REF_PAGES || [])),
   diagrams: pick("diagrams").DIAGRAMS,
   flows: pick("diagrams").FLOWS,
 });
@@ -35,9 +41,9 @@ const writeCache = (bundle) => { try { window.localStorage.setItem(CACHE_KEY, JS
 
 // Resolves to { status: "ready" | "missing" | "error" }.
 export async function loadDocsContent() {
-  if (PAGES.length) return { status: "ready" };
+  if (bundleLoaded) return { status: "ready" };
   const cached = readCache();
-  if (cached?.pages?.length) hydrateDocs(cached);
+  if (cached?.pages?.length) hydrateDocs({ ...cached, pages: mergePages(FEATURE_PAGES, cached.pages) });
   if (navigator.onLine === false) return { status: PAGES.length ? "ready" : "error" };
   try {
     const { data } = (await supabaseClient?.auth.getSession()) || {};
@@ -46,7 +52,13 @@ export async function loadDocsContent() {
     const response = await apiFetch("/api/docs/content", { headers: { Authorization: `Bearer ${token}` } }, { retries: 1 });
     if (response.status === 404) return { status: PAGES.length ? "ready" : "missing" };
     const bundle = await response.json();
-    if (bundle?.pages?.length) { hydrateDocs(bundle); writeCache(bundle); return { status: "ready" }; }
+    if (bundle?.pages?.length) {
+      const completeBundle = { ...bundle, pages: mergePages(FEATURE_PAGES, bundle.pages) };
+      hydrateDocs(completeBundle);
+      writeCache(completeBundle);
+      bundleLoaded = true;
+      return { status: "ready" };
+    }
   } catch { /* fall through to cached content */ }
   return { status: PAGES.length ? "ready" : "error" };
 }
